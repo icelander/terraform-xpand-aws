@@ -1,0 +1,19 @@
+-- Set License File
+set global license='${xpand_license}';
+
+-- Set root password
+GRANT ALL ON *.* TO root@'127.0.0.1' IDENTIFIED BY '${xpand_root_password}';
+
+%{ for index, ms in maxscale_servers ~}
+-- Create maxscale user for ${ms.private_ip}
+CREATE USER 'maxscale'@'${ms.private_ip}' IDENTIFIED BY 'mariadb';
+GRANT SELECT ON system.membership TO 'maxscale'@'${ms.private_ip}';
+GRANT SELECT ON system.nodes TO 'maxscale'@'${ms.private_ip}';
+GRANT SELECT ON system.nodeinfo TO 'maxscale'@'${ms.private_ip}';
+GRANT SELECT ON system.sessions TO 'maxscale'@'${ms.private_ip}';
+GRANT SELECT ON system.softfailed_nodes TO 'maxscale'@'${ms.private_ip}';
+GRANT SELECT ON system.user_acl TO 'maxscale'@'${ms.private_ip}';
+GRANT SELECT ON system.users TO 'maxscale'@'${ms.private_ip}';
+GRANT SHOW DATABASES ON *.* TO 'maxscale'@'${ms.private_ip}';
+
+%{ endfor ~}

@@ -1,0 +1,16 @@
+Host bastion
+   User ${user}
+   IdentityFile ${ssh_key_path}
+   HostName ${bastion_ip}
+
+%{ for index, db in db_servers ~}
+Host xpand${index}
+   User ${ssh_user}
+   HostName ${db.private_ip}
+%{ endfor ~}
+
+%{ for index, ms in maxscale_servers ~}
+Host maxscale${index}
+   User ${ssh_user}
+   HostName ${ms.private_ip}
+%{ endfor ~}

@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# This script is run on the bastion host to set up Maxscale
+%{ for index, ms in maxscale_servers ~}
+ssh-keyscan ${ms.private_ip} >> ~/.ssh/known_hosts
+
+# Copy install script
+scp ~/deploy/scripts/install_maxscale.sh ${ssh_user}@${ms.private_ip}:~/install_maxscale.sh
+
+# Run the install script
+ssh ${ssh_user}@${ms.private_ip} 'chmod +x ~/install_maxscale.sh; sudo ~/install_maxscale.sh ${token}'
+
+
+%{for i, db in xpand_servers}
+ssh ${ssh_user}@${ms.private_ip} "sudo maxctrl create server xpand${i} ${db.private_ip}"
+%{ endfor ~}
+ssh ${ssh_user}@${ms.private_ip} "sudo maxctrl create monitor xpand_monitor xpandmon --servers ${db_names} --monitor-user=maxscale --monitor-password='mariadb'"
+ssh ${ssh_user}@${ms.private_ip} "sudo maxctrl create service xpand_service readwritesplit user=maxscale password='mariadb' --servers ${db_names}"
+ssh ${ssh_user}@${ms.private_ip} "sudo maxctrl create listener xpand_service xpand_listener 3306 --protocol=MariaDBClient"
+%{ endfor ~}

@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Generate an SSH Keypair for xpand and xpandm
+ssh-keygen -t rsa -f ~/xpand_rsa -N ""
+
+# This script is run on the bastion host to configure the DB hosts
+# On each server
+%{ for index, db in db_servers ~}
+# Add the keys to known_hosts to allow SSH
+ssh-keyscan ${db.private_ip} >> ~/.ssh/known_hosts
+
+# Copy xpand key and certificate
+scp ~/xpand_rsa ${ssh_user}@${db.private_ip}:~/xpand_rsa
+scp ~/xpand_rsa.pub ${ssh_user}@${db.private_ip}:~/xpand_rsa.pub
+
+# Copy install script
+scp ~/deploy/scripts/install_xpand.sh ${ssh_user}@${db.private_ip}:~/install_xpand.sh
+# Copy Xpand Archive
+scp ~/deploy/lib/${xpand_archive_filename} ${ssh_user}@${db.private_ip}:~/
+
+# Run the install script
+ssh ${ssh_user}@${db.private_ip} 'chmod +x ~/install_xpand.sh; sudo ~/install_xpand.sh'
+
+%{ if index == 0 ~}
+# This is the first server, so initialize the cluster
+scp ~/deploy/sql/*.sql ${ssh_user}@${db.private_ip}:~/
+
+ssh ${ssh_user}@${db.private_ip} 'sudo mysql < /home/centos/xpand.sql'
+ssh ${ssh_user}@${db.private_ip} 'sudo mysql < /home/centos/users.sql'
+ssh ${ssh_user}@${db.private_ip} 'sudo mysql world < /home/centos/world.sql'
+ssh ${ssh_user}@${db.private_ip} 'rm -rf /home/centos/*.sql'
+%{ else ~}
+# Otherwise add the node to the cluster via the first Xpand node
+ssh ${ssh_user}@${db_servers[0].private_ip} "sudo mysql -e \"ALTER CLUSTER ADD '${db.private_ip}';\""
+%{ endif ~}
+%{ endfor ~}
+
+
+# Do ssh-keyscan for xpand and xpandm users
+%{ for index, db in db_servers ~}
+	%{ for index2, db2 in db_servers ~}
+		%{ if db.private_ip != db2.private_ip ~}
+ssh ${ssh_user}@${db.private_ip} 'sudo su xpand -c "ssh-keyscan ${db2.private_ip} >> ~/.ssh/known_hosts"'
+ssh ${ssh_user}@${db.private_ip} 'sudo su xpandm -c "ssh-keyscan ${db2.private_ip} >> ~/.ssh/known_hosts"'
+		%{ endif ~}
+	%{ endfor ~}
+%{ endfor ~}
